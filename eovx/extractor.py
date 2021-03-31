@@ -32,7 +32,7 @@ class RasterExtractor(object):
 
                 with gw.open(values, **kwargs) as src:
 
-                    if src.gw.bounds_overlay(self.geometry.to_crs.total_bounds.values.tolist()):
+                    if src.gw.bounds_overlay(self.geometry.to_crs(src.crs).total_bounds.values.tolist()):
 
                         dfs = gw.extract(src.transpose('band', 'y', 'x'),
                                          self.geometry.to_crs(src.crs),
