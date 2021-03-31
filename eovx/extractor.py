@@ -54,7 +54,7 @@ class RasterExtractor(object):
 
         values_list = list(Path(values_parent).rglob(pattern))
 
-        cxtf = concurrent.futures.ThreadPoolExecutor if use_concurrency else _futures_dummy
+        cxtf = concurrent.futures.ProcessPoolExecutor if use_concurrency else _futures_dummy
 
         with cxtf(max_workers=self.num_cpus) as executor:
 
