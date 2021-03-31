@@ -1,0 +1,8 @@
+dask
+geopandas
+numpy
+pandas
+ray
+shapely
+xarray
+# geowombat
