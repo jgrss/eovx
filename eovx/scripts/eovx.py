@@ -27,12 +27,14 @@ def main():
         print(eovx.__version__)
         return
 
-    ex = eovx.Extractor(args.geometry)
+    ex = eovx.Extractor(args.geometry,
+                        num_cpus=args.num_cpus)
 
     df = ex.extract(args.values[0] if len(args.values) == 1 else args.values,
                     pattern=args.pattern,
                     use_ray=args.use_ray,
-                    use_concurrency=args.use_concurrency)
+                    use_concurrency=args.use_concurrency,
+                    chunks=args.chunks)
 
     if str(args.out_file).lower().endswith('.gpkg'):
         df.to_file(args.out_file, driver='GPKG')

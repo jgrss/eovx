@@ -23,7 +23,7 @@ def _futures_dummy(max_workers=None):
 
 class RasterExtractor(object):
 
-    def extract_raster_values(self, values, use_ray, **kwargs):
+    def extract_raster_values(self, values, use_ray, num_cpus, **kwargs):
 
         df = None
 
@@ -44,7 +44,7 @@ class RasterExtractor(object):
 
                         df = gw.extract(src.transpose('band', 'y', 'x'),
                                         self.geometry.to_crs(src.crs),
-                                        n_jobs=self.num_cpus)
+                                        n_jobs=num_cpus)
 
         return df
 
@@ -63,6 +63,7 @@ class RasterExtractor(object):
                 futures = (executor.submit(self.extract_raster_values,
                                            values,
                                            use_ray,
+                                           1,
                                            **kwargs) for values in values_list)
 
                 for f in tqdm(concurrent.futures.as_completed(futures), total=len(values_list)):
@@ -73,6 +74,7 @@ class RasterExtractor(object):
 
                 df_list = [self.extract_raster_values(values,
                                                       use_ray,
+                                                      self.num_cpus,
                                                       **kwargs) for values in values_list]
 
         df = pd.concat(df_list, axis=0)
