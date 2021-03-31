@@ -32,13 +32,20 @@ class RasterExtractor(object):
 
                 with gw.open(values, **kwargs) as src:
 
-                    if src.gw.bounds_overlay(self.geometry.to_crs(src.crs).total_bounds.tolist()):
+                    bounds = self.geometry.to_crs(src.crs).total_bounds.tolist()
+                    left, bottom, right, top = bounds
 
-                        dfs = gw.extract(src.transpose('band', 'y', 'x'),
-                                         self.geometry.to_crs(src.crs),
-                                         n_jobs=self.num_cpus)
+                    if src.gw.bounds_overlay(tuple(bounds)):
 
-                        df_list.append(dfs)
+                        values_df = self.geometry.to_crs(src.crs).cx[left:right, bottom:top]
+
+                        if not values_df.empty:
+
+                            dfs = gw.extract(src.transpose('band', 'y', 'x'),
+                                             values_df,
+                                             n_jobs=self.num_cpus)
+
+                            df_list.append(dfs)
 
         df = pd.concat(df_list, axis=0)
 
