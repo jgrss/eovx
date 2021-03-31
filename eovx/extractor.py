@@ -1,4 +1,6 @@
 from pathlib import Path
+from contextlib import contextmanager
+import concurrent.futures
 
 import geowombat as gw
 import ray
@@ -9,46 +11,69 @@ import geopandas as gpd
 from tqdm import tqdm
 
 
+@contextmanager
+def _dask_dummy(scheduler=None):
+    yield None
+
+
+@contextmanager
+def _futures_dummy(max_workers=None):
+    yield None
+
+
 class RasterExtractor(object):
 
-    def extract_raster_values(self, values, **kwargs):
+    def extract_raster_values(self, values, use_ray, **kwargs):
 
-        with dask.config.set(scheduler=ray_dask_get):
+        df = None
+
+        cxt = dask.config.set if use_ray else _dask_dummy
+
+        with cxt(scheduler=ray_dask_get):
 
             with gw.open(values, **kwargs) as src:
 
-                df = gw.extract(src.transpose('band', 'y', 'x'),
-                                self.geometry.to_crs(src.crs),
-                                n_jobs=self.num_cpus)
+                bounds = self.geometry.to_crs(src.crs).total_bounds.tolist()
+                left, bottom, right, top = bounds
+
+                if src.gw.bounds_overlay(tuple(bounds)):
+
+                    values_df = self.geometry.to_crs(src.crs).cx[left:right, bottom:top]
+
+                    if not values_df.empty:
+
+                        df = gw.extract(src.transpose('band', 'y', 'x'),
+                                        self.geometry.to_crs(src.crs),
+                                        n_jobs=self.num_cpus)
 
         return df
 
-    def extract_by_path(self, values_parent, pattern, **kwargs):
+    def extract_by_path(self, values_parent, use_ray, use_concurrency, pattern, **kwargs):
 
         df_list = []
 
         values_list = list(Path(values_parent).rglob(pattern))
 
-        with dask.config.set(scheduler=ray_dask_get):
+        cxtf = concurrent.futures.ThreadPoolExecutor if use_concurrency else _futures_dummy
 
-            for values in tqdm(values_list, total=len(values_list)):
+        with cxtf(max_workers=self.num_cpus) as executor:
 
-                with gw.open(values, **kwargs) as src:
+            if use_concurrency:
 
-                    bounds = self.geometry.to_crs(src.crs).total_bounds.tolist()
-                    left, bottom, right, top = bounds
+                futures = (executor.submit(self.extract_raster_values,
+                                           values,
+                                           use_ray,
+                                           **kwargs) for values in values_list)
 
-                    if src.gw.bounds_overlay(tuple(bounds)):
+                for f in tqdm(concurrent.futures.as_completed(futures), total=len(values_list)):
+                    res = f.result()
+                    df_list.append(res)
 
-                        values_df = self.geometry.to_crs(src.crs).cx[left:right, bottom:top]
+            else:
 
-                        if not values_df.empty:
-
-                            dfs = gw.extract(src.transpose('band', 'y', 'x'),
-                                             values_df,
-                                             n_jobs=self.num_cpus)
-
-                            df_list.append(dfs)
+                df_list = [self.extract_raster_values(values,
+                                                      use_ray,
+                                                      **kwargs) for values in values_list]
 
         df = pd.concat(df_list, axis=0)
 
@@ -81,7 +106,7 @@ class BaseExtractor(RasterExtractor):
         else:
             raise NameError('The values must be a directory, file, or list of files')
 
-    def extract(self, values, pattern=None, chunks=1024):
+    def extract(self, values, pattern=None, use_ray=False, use_concurrency=False, chunks=1024):
 
         """
         Extracts raster values
@@ -89,6 +114,8 @@ class BaseExtractor(RasterExtractor):
         Args:
             values (str | Path | list): Either a directory path or a full path to a raster.
             pattern (Optional[str]): A glob file pattern. Only used if ``values`` is a directory.
+            use_ray (Optional[bool]): Whether to use ``ray`` with a ``dask`` configuration.
+            use_concurrency (Optional[bool]): Whether to use ``concurrent.futures`` over each raster.
             chunks (Optional[int]): The chunk size.
         """
 
@@ -97,17 +124,19 @@ class BaseExtractor(RasterExtractor):
 
         values_type = self.validate_values(values)
 
-        ray.shutdown()
-        ray.init(num_cpus=self.num_cpus)
+        if use_ray:
+            ray.shutdown()
+            ray.init(num_cpus=self.num_cpus)
 
         if values_type == 'file':
-            df = self.extract_raster_values(values, chunks=chunks)
+            df = self.extract_raster_values(values, use_ray, chunks=chunks)
         elif values_type == 'list':
-            df = self.extract_raster_values(values, mosaic=True, chunks=chunks)
+            df = self.extract_raster_values(values, use_ray, mosaic=True, chunks=chunks)
         elif values_type == 'dir':
-            df = self.extract_by_path(values, pattern, chunks=chunks)
+            df = self.extract_by_path(values, use_ray, use_concurrency, pattern, chunks=chunks)
 
-        ray.shutdown()
+        if use_ray:
+            ray.shutdown()
 
         return df
 
