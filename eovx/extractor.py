@@ -6,6 +6,7 @@ from ray.util.dask import ray_dask_get
 import dask
 import pandas as pd
 import geopandas as gpd
+from tqdm import tqdm
 
 
 class RasterExtractor(object):
@@ -26,9 +27,11 @@ class RasterExtractor(object):
 
         df_list = []
 
+        values_list = list(Path(values_parent).rglob(pattern))
+
         with dask.config.set(scheduler=ray_dask_get):
 
-            for values in Path(values_parent).rglob(pattern):
+            for values in tqdm(values_list, total=len(values_list)):
 
                 with gw.open(values, **kwargs) as src:
 

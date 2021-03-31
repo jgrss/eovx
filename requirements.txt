@@ -4,5 +4,6 @@ numpy
 pandas
 ray
 shapely
+tqdm
 xarray
 # geowombat
