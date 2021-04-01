@@ -18,6 +18,7 @@ def main():
     parser.add_argument('-n', '--num-cpus', dest='num_cpus', help='The number of CPUs to use for concurrent threading',
                         default=1, type=int)
     parser.add_argument('-c', '--chunks', dest='chunks', help='The chunk size', default=1024, type=int)
+    parser.add_argument('-b', '--band-names', dest='band_names', help='Band names', default=None, nargs='+')
     parser.add_argument('-o', '--outfile', dest='out_file', help='The output file', default=None)
     parser.add_argument('--version', dest='version', help='Show the version', action='store_true')
 
@@ -34,7 +35,8 @@ def main():
                     pattern=args.pattern,
                     use_ray=args.use_ray,
                     use_concurrency=args.use_concurrency,
-                    chunks=args.chunks)
+                    chunks=args.chunks,
+                    band_names=args.band_names)
 
     if str(args.out_file).lower().endswith('.gpkg'):
         df.to_file(args.out_file, driver='GPKG')

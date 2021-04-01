@@ -44,6 +44,7 @@ class RasterExtractor(object):
 
                         df = gw.extract(src.transpose('band', 'y', 'x'),
                                         self.geometry.to_crs(src.crs),
+                                        band_names=kwargs['band_names'] if 'band_names' in kwargs else None,
                                         n_jobs=num_cpus)
 
         return df
@@ -108,7 +109,7 @@ class BaseExtractor(RasterExtractor):
         else:
             raise NameError('The values must be a directory, file, or list of files')
 
-    def extract(self, values, pattern=None, use_ray=False, use_concurrency=False, chunks=1024):
+    def extract(self, values, pattern=None, use_ray=False, use_concurrency=False, **kwargs):
 
         """
         Extracts raster values
@@ -118,7 +119,7 @@ class BaseExtractor(RasterExtractor):
             pattern (Optional[str]): A glob file pattern. Only used if ``values`` is a directory.
             use_ray (Optional[bool]): Whether to use ``ray`` with a ``dask`` configuration.
             use_concurrency (Optional[bool]): Whether to use ``concurrent.futures`` over each raster.
-            chunks (Optional[int]): The chunk size.
+            kwargs (Optional[dict]): Extra keyword arguments passed to ``geowombat.open``.
         """
 
         if self.geometry.empty:
@@ -131,11 +132,11 @@ class BaseExtractor(RasterExtractor):
             ray.init(num_cpus=self.num_cpus)
 
         if values_type == 'file':
-            df = self.extract_raster_values(values, use_ray, chunks=chunks)
+            df = self.extract_raster_values(values, use_ray, self.num_cpus, **kwargs)
         elif values_type == 'list':
-            df = self.extract_raster_values(values, use_ray, mosaic=True, chunks=chunks)
+            df = self.extract_raster_values(values, use_ray, self.num_cpus, mosaic=True, **kwargs)
         elif values_type == 'dir':
-            df = self.extract_by_path(values, use_ray, use_concurrency, pattern, chunks=chunks)
+            df = self.extract_by_path(values, use_ray, use_concurrency, pattern, **kwargs)
 
         if use_ray:
             ray.shutdown()
