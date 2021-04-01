@@ -1,5 +1,11 @@
 # eovx (Earth observation value extraction)
 
+## Install
+
+```commandline
+pip install git+https://github.com/jgrss/eovx
+```
+
 ## Python API
 
 ```python
